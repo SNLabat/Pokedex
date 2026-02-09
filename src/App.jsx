@@ -39,16 +39,16 @@ const VERSION_COLORS = {
 // Pokemon from Gen III–V games have no origin mark. Gen I–II only get the Game Boy
 // mark when transferred from Virtual Console releases via Pokemon Bank.
 const ORIGIN_MARKS = [
-  { id: "gameboy",  symbol: "\u{1F3AE}", name: "Game Boy",   color: "#8bac0f", games: "RBY / GSC (Virtual Console)", versions: ["red","blue","yellow","gold","silver","crystal"] },
-  { id: "go",       symbol: "G",          name: "GO",         color: "#1a73e8", games: "Pokemon GO",                 versions: [] },
-  { id: "letsgo",   symbol: "\u2B50",     name: "Let's Go",   color: "#f5da26", games: "Let's Go Pikachu / Eevee",   versions: ["lets-go-pikachu","lets-go-eevee"] },
-  { id: "pentagon", symbol: "\u2B53",     name: "Kalos",      color: "#025DA6", games: "X / Y, Omega Ruby / Alpha Sapphire", versions: ["x","y","omega-ruby","alpha-sapphire"] },
-  { id: "clover",   symbol: "\u2663",     name: "Alola",      color: "#f59c1a", games: "Sun / Moon, Ultra Sun / Ultra Moon",  versions: ["sun","moon","ultra-sun","ultra-moon"] },
-  { id: "galar",    symbol: "\u{1F310}",  name: "Galar",      color: "#00A1E9", games: "Sword / Shield",             versions: ["sword","shield"] },
-  { id: "sinnoh",   symbol: "\u25C6",     name: "Sinnoh",     color: "#AAAAFF", games: "Brilliant Diamond / Shining Pearl", versions: ["brilliant-diamond","shining-pearl"] },
-  { id: "hisui",    symbol: "\u2B21",     name: "Hisui",      color: "#336DB5", games: "Legends: Arceus",            versions: ["legends-arceus"] },
-  { id: "paldea",   symbol: "\u2726",     name: "Paldea",     color: "#F34D36", games: "Scarlet / Violet",           versions: ["scarlet","violet"] },
-  { id: "lumiose",  symbol: "\u25B2",     name: "Lumiose",    color: "#7A26B0", games: "Legends: Z-A",               versions: ["legends-z-a"] },
+  { id: "gameboy",  img: "/marks/gameboy.png",  name: "Game Boy",   color: "#8bac0f", games: "RBY / GSC (Virtual Console)", versions: ["red","blue","yellow","gold","silver","crystal"] },
+  { id: "go",       img: "/marks/go.png",       name: "GO",         color: "#1a73e8", games: "Pokemon GO",                 versions: [] },
+  { id: "letsgo",   img: "/marks/letsgo.png",   name: "Let's Go",   color: "#f5da26", games: "Let's Go Pikachu / Eevee",   versions: ["lets-go-pikachu","lets-go-eevee"] },
+  { id: "pentagon", img: "/marks/pentagon.png", name: "Kalos",      color: "#025DA6", games: "X / Y, Omega Ruby / Alpha Sapphire", versions: ["x","y","omega-ruby","alpha-sapphire"] },
+  { id: "clover",   img: "/marks/clover.png",   name: "Alola",      color: "#f59c1a", games: "Sun / Moon, Ultra Sun / Ultra Moon",  versions: ["sun","moon","ultra-sun","ultra-moon"] },
+  { id: "galar",    img: "/marks/galar.png",    name: "Galar",      color: "#00A1E9", games: "Sword / Shield",             versions: ["sword","shield"] },
+  { id: "sinnoh",   img: "/marks/sinnoh.png",   name: "Sinnoh",     color: "#AAAAFF", games: "Brilliant Diamond / Shining Pearl", versions: ["brilliant-diamond","shining-pearl"] },
+  { id: "hisui",    img: "/marks/hisui.png",    name: "Hisui",      color: "#336DB5", games: "Legends: Arceus",            versions: ["legends-arceus"] },
+  { id: "paldea",   img: "/marks/paldea.png",   name: "Paldea",     color: "#F34D36", games: "Scarlet / Violet",           versions: ["scarlet","violet"] },
+  { id: "lumiose",  img: "/marks/lumiose.png",  name: "Lumiose",    color: "#7A26B0", games: "Legends: Z-A",               versions: ["legends-z-a"] },
 ];
 
 // Maps PokeAPI generation names to native origin marks
@@ -536,10 +536,11 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                             border: `1px solid ${mark.color}22`,
                           }}>
                             <div style={{
-                              width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-                              background: `${mark.color}22`, fontSize: 16, flexShrink: 0,
+                              width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+                              background: `${mark.color}18`, border: `1px solid ${mark.color}20`, flexShrink: 0,
                             }}>
-                              {mark.symbol}
+                              <img src={mark.img} alt={`${mark.name} mark`}
+                                style={{ width: 22, height: 22, objectFit: "contain", filter: "brightness(1.1)" }}/>
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 700, color: mark.color }}>{mark.name} Mark</div>
