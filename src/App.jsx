@@ -64,6 +64,28 @@ const GEN_TO_MARKS = {
   "generation-ix":  ["paldea", "lumiose"],
 };
 
+// Maps PokeAPI pokedex names for Gen 8-9 regional dexes to game information
+const POKEDEX_GAME_INFO = {
+  "galar":         { name: "Sword / Shield",                 color: "#00A1E9", serebii: "pokedex-swsh" },
+  "isle-of-armor": { name: "Isle of Armor (SwSh DLC)",       color: "#E4A23B", serebii: "pokedex-swsh" },
+  "crown-tundra":  { name: "Crown Tundra (SwSh DLC)",        color: "#4FA4DE", serebii: "pokedex-swsh" },
+  "hisui":         { name: "Legends: Arceus",                 color: "#336DB5", serebii: "pokedex-la" },
+  "paldea":        { name: "Scarlet / Violet",                color: "#F34D36", serebii: "pokedex-sv" },
+  "kitakami":      { name: "Kitakami (SV DLC)",               color: "#7B8B3C", serebii: "pokedex-sv" },
+  "blueberry":     { name: "Blueberry Academy (SV DLC)",      color: "#2D5DA1", serebii: "pokedex-sv" },
+};
+
+function getGen89Games(species) {
+  if (!species?.pokedex_numbers) return [];
+  return species.pokedex_numbers
+    .filter(entry => POKEDEX_GAME_INFO[entry.pokedex.name])
+    .map(entry => ({
+      ...POKEDEX_GAME_INFO[entry.pokedex.name],
+      dexNumber: entry.entry_number,
+      pokedexName: entry.pokedex.name,
+    }));
+}
+
 function getOriginMarks(species, encounters) {
   const markIds = new Set();
   // Native marks from the Pokemon's generation
@@ -143,6 +165,19 @@ function loadGen() {
 
 function saveGen(gen) {
   try { localStorage.setItem(GEN_KEY, String(gen)); } catch {}
+}
+
+const MARKS_KEY = "pokedex-tracker-marks";
+
+function loadMarks() {
+  try {
+    const data = localStorage.getItem(MARKS_KEY);
+    return data ? JSON.parse(data) : {};
+  } catch { return {}; }
+}
+
+function saveMarks(marks) {
+  try { localStorage.setItem(MARKS_KEY, JSON.stringify(marks)); } catch {}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -294,7 +329,7 @@ const PokemonCard = ({ data, caught, showShiny, onClick, onToggleCaught }) => {
 //  DETAIL MODAL
 // ═══════════════════════════════════════════════════════════
 
-const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, onToggleCaught, showShiny }) => {
+const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, onToggleCaught, showShiny, selectedMarks, onToggleMark }) => {
   const [activeTab, setActiveTab] = useState("stats");
   const [animateStats, setAnimateStats] = useState(false);
 
@@ -501,7 +536,7 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                   </div>
                 </div>
               )}
-              {/* Origin Marks */}
+              {/* Origin Marks — Selectable / Trackable */}
               {species && (
                 <div style={{ marginTop: 20 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -512,9 +547,17 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                       position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center",
                       width: 16, height: 16, borderRadius: "50%", background: "rgba(255,255,255,.08)",
                       fontSize: 10, color: "rgba(255,255,255,.4)", cursor: "help",
-                    }} title="Origin marks are icons shown on a Pokemon's summary screen indicating which game it was caught in. A Pokemon can only have one origin mark, determined by its game of origin.">
+                    }} title="Click to track which origin marks you have for this Pokemon. A Pokemon receives an origin mark based on which game it was caught in.">
                       ?
                     </div>
+                    {selectedMarks.length > 0 && (
+                      <span style={{
+                        padding: "2px 8px", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                        background: "rgba(72,219,251,.15)", color: "#48dbfb",
+                      }}>
+                        {selectedMarks.length} tracked
+                      </span>
+                    )}
                   </div>
                   {(() => {
                     const marks = getOriginMarks(species, encounters);
@@ -528,28 +571,58 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                     }
                     return (
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {marks.map(mark => (
-                          <div key={mark.id} style={{
-                            display: "flex", alignItems: "center", gap: 10,
-                            padding: "8px 12px", borderRadius: 10,
-                            background: `linear-gradient(135deg, ${mark.color}12, rgba(255,255,255,.02))`,
-                            border: `1px solid ${mark.color}22`,
-                          }}>
-                            <div style={{
-                              width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
-                              background: `${mark.color}18`, border: `1px solid ${mark.color}20`, flexShrink: 0,
-                            }}>
-                              <img src={mark.img} alt={`${mark.name} mark`}
-                                style={{ width: 22, height: 22, objectFit: "contain", filter: "brightness(1.1)" }}/>
+                        {marks.map(mark => {
+                          const isSelected = selectedMarks.includes(mark.id);
+                          return (
+                            <div key={mark.id}
+                              onClick={() => onToggleMark(mark.id)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 10,
+                                padding: "8px 12px", borderRadius: 10, cursor: "pointer",
+                                background: isSelected
+                                  ? `linear-gradient(135deg, ${mark.color}25, ${mark.color}10)`
+                                  : `linear-gradient(135deg, ${mark.color}08, rgba(255,255,255,.02))`,
+                                border: isSelected
+                                  ? `2px solid ${mark.color}88`
+                                  : `1px solid ${mark.color}22`,
+                                boxShadow: isSelected ? `0 0 12px ${mark.color}22` : "none",
+                                transition: "all .2s ease",
+                                opacity: isSelected ? 1 : 0.55,
+                              }}>
+                              <div style={{
+                                width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+                                background: isSelected ? `${mark.color}30` : `${mark.color}12`,
+                                border: `1px solid ${isSelected ? mark.color + "50" : mark.color + "20"}`,
+                                flexShrink: 0, transition: "all .2s ease",
+                              }}>
+                                <img src={mark.img} alt={`${mark.name} mark`}
+                                  style={{ width: 22, height: 22, objectFit: "contain",
+                                    filter: isSelected ? "brightness(1.2)" : "brightness(0.7)" }}/>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700,
+                                  color: isSelected ? mark.color : "rgba(255,255,255,.5)" }}>
+                                  {mark.name} Mark
+                                </div>
+                                <div style={{ fontSize: 10, color: "rgba(255,255,255,.4)", marginTop: 1 }}>{mark.games}</div>
+                              </div>
+                              <div style={{
+                                width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
+                                background: isSelected ? mark.color : "rgba(255,255,255,.06)",
+                                border: isSelected ? "none" : "1px solid rgba(255,255,255,.1)",
+                                transition: "all .2s ease", flexShrink: 0,
+                              }}>
+                                {isSelected && (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                  </svg>
+                                )}
+                              </div>
                             </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: mark.color }}>{mark.name} Mark</div>
-                              <div style={{ fontSize: 10, color: "rgba(255,255,255,.45)", marginTop: 1 }}>{mark.games}</div>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         <div style={{ fontSize: 10, color: "rgba(255,255,255,.3)", marginTop: 4, lineHeight: 1.5, fontStyle: "italic" }}>
-                          A Pokemon can only carry one origin mark, set by the game it was caught or hatched in. Marks cannot be changed.
+                          Click to track which origin marks you have. A Pokemon carries one origin mark, set by the game it was caught or hatched in.
                         </div>
                       </div>
                     );
@@ -559,15 +632,8 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
             </div>
           ) : (
             <div>
-              {Object.keys(groupedEncounters).length === 0 ? (
-                <div style={{ textAlign: "center", padding: "40px 20px" }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>&#128274;</div>
-                  <div style={{ fontSize: 14, color: "rgba(255,255,255,.5)", lineHeight: 1.6 }}>
-                    This Pokemon cannot be caught in the wild.<br/>
-                    <span style={{ fontSize: 12, opacity: .7 }}>It may be obtained through events, trades, or evolution.</span>
-                  </div>
-                </div>
-              ) : (
+              {/* Classic encounter data from PokeAPI (Gens 1-7) */}
+              {Object.keys(groupedEncounters).length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {Object.entries(groupedEncounters).map(([version, locations]) => (
                     <div key={version} style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,.06)" }}>
@@ -596,6 +662,71 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                   ))}
                 </div>
               )}
+
+              {/* Gen 8-9 game availability from species regional dex data */}
+              {(() => {
+                const gen89 = getGen89Games(species);
+                const hasClassic = Object.keys(groupedEncounters).length > 0;
+
+                if (gen89.length === 0 && !hasClassic) {
+                  return (
+                    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                      <div style={{ fontSize: 40, marginBottom: 12 }}>&#128274;</div>
+                      <div style={{ fontSize: 14, color: "rgba(255,255,255,.5)", lineHeight: 1.6 }}>
+                        This Pokemon cannot be caught in the wild.<br/>
+                        <span style={{ fontSize: 12, opacity: .7 }}>It may be obtained through events, trades, or evolution.</span>
+                      </div>
+                    </div>
+                  );
+                }
+                if (gen89.length === 0) return null;
+
+                return (
+                  <div style={{ marginTop: hasClassic ? 16 : 0 }}>
+                    {hasClassic && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.4)", letterSpacing: 1, marginBottom: 10, textTransform: "uppercase" }}>
+                        Newer Games (Gen VIII&ndash;IX)
+                      </div>
+                    )}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {gen89.map(game => (
+                        <div key={game.pokedexName} style={{
+                          borderRadius: 12, overflow: "hidden",
+                          border: "1px solid rgba(255,255,255,.06)",
+                        }}>
+                          <div style={{
+                            padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                            background: `linear-gradient(90deg, ${game.color}33, transparent)`,
+                          }}>
+                            <div>
+                              <div style={{ fontWeight: 700, fontSize: 13, color: game.color }}>{game.name}</div>
+                              <div style={{ fontSize: 11, color: "rgba(255,255,255,.4)", marginTop: 2 }}>
+                                Regional Dex #{game.dexNumber}
+                              </div>
+                            </div>
+                            {game.serebii && (
+                              <a href={`https://www.serebii.net/${game.serebii}/${pokemon.name}/`}
+                                target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                  padding: "4px 10px", borderRadius: 8, fontSize: 10, fontWeight: 700,
+                                  background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.6)",
+                                  textDecoration: "none", border: "1px solid rgba(255,255,255,.1)",
+                                  transition: "all .2s", whiteSpace: "nowrap",
+                                }}>
+                                View on Serebii &#8599;
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,.3)", marginTop: 8, lineHeight: 1.5, fontStyle: "italic" }}>
+                      Detailed encounter data for Gen 8&ndash;9 games is limited in PokeAPI. Click &ldquo;View on Serebii&rdquo; for full location info.
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -618,14 +749,16 @@ export default function App() {
   const [caughtFilter, setCaughtFilter] = useState("all");
   const [showShiny, setShowShiny] = useState(false);
   const [caught, setCaught] = useState(loadCaught);
+  const [marks, setMarks] = useState(loadMarks);
   const [modalPokemon, setModalPokemon] = useState(null);
   const [modalSpecies, setModalSpecies] = useState(null);
   const [modalEncounters, setModalEncounters] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const cache = useRef({ pokemon: {}, species: {}, encounters: {} });
 
-  // Persist caught state to localStorage
+  // Persist caught state, marks, and gen to localStorage
   useEffect(() => { saveCaught(caught); }, [caught]);
+  useEffect(() => { saveMarks(marks); }, [marks]);
   useEffect(() => { saveGen(selectedGen); }, [selectedGen]);
 
   // Fetch generation data
@@ -688,6 +821,19 @@ export default function App() {
 
   const toggleCaught = useCallback((id) => {
     setCaught(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const toggleMark = useCallback((pokemonId, markId) => {
+    setMarks(prev => {
+      const current = prev[pokemonId] || [];
+      const has = current.includes(markId);
+      return {
+        ...prev,
+        [pokemonId]: has
+          ? current.filter(m => m !== markId)
+          : [...current, markId],
+      };
+    });
   }, []);
 
   const availableTypes = useMemo(() => {
@@ -896,6 +1042,8 @@ export default function App() {
           loading={modalLoading} onClose={() => setModalPokemon(null)}
           caught={!!caught[modalPokemon.id]} onToggleCaught={() => toggleCaught(modalPokemon.id)}
           showShiny={showShiny}
+          selectedMarks={marks[modalPokemon.id] || []}
+          onToggleMark={(markId) => toggleMark(modalPokemon.id, markId)}
         />
       )}
     </div>
