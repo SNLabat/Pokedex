@@ -35,6 +35,59 @@ const VERSION_COLORS = {
   violet: "#7A26B0", "lets-go-pikachu": "#F5DA26", "lets-go-eevee": "#C88D32",
 };
 
+// Origin marks — the icon a Pokemon receives based on which game it was caught in.
+// Pokemon from Gen III–V games have no origin mark. Gen I–II only get the Game Boy
+// mark when transferred from Virtual Console releases via Pokemon Bank.
+const ORIGIN_MARKS = [
+  { id: "gameboy",  symbol: "\u{1F3AE}", name: "Game Boy",   color: "#8bac0f", games: "RBY / GSC (Virtual Console)", versions: ["red","blue","yellow","gold","silver","crystal"] },
+  { id: "go",       symbol: "G",          name: "GO",         color: "#1a73e8", games: "Pokemon GO",                 versions: [] },
+  { id: "letsgo",   symbol: "\u2B50",     name: "Let's Go",   color: "#f5da26", games: "Let's Go Pikachu / Eevee",   versions: ["lets-go-pikachu","lets-go-eevee"] },
+  { id: "pentagon", symbol: "\u2B53",     name: "Kalos",      color: "#025DA6", games: "X / Y, Omega Ruby / Alpha Sapphire", versions: ["x","y","omega-ruby","alpha-sapphire"] },
+  { id: "clover",   symbol: "\u2663",     name: "Alola",      color: "#f59c1a", games: "Sun / Moon, Ultra Sun / Ultra Moon",  versions: ["sun","moon","ultra-sun","ultra-moon"] },
+  { id: "galar",    symbol: "\u{1F310}",  name: "Galar",      color: "#00A1E9", games: "Sword / Shield",             versions: ["sword","shield"] },
+  { id: "sinnoh",   symbol: "\u25C6",     name: "Sinnoh",     color: "#AAAAFF", games: "Brilliant Diamond / Shining Pearl", versions: ["brilliant-diamond","shining-pearl"] },
+  { id: "hisui",    symbol: "\u2B21",     name: "Hisui",      color: "#336DB5", games: "Legends: Arceus",            versions: ["legends-arceus"] },
+  { id: "paldea",   symbol: "\u2726",     name: "Paldea",     color: "#F34D36", games: "Scarlet / Violet",           versions: ["scarlet","violet"] },
+  { id: "lumiose",  symbol: "\u25B2",     name: "Lumiose",    color: "#7A26B0", games: "Legends: Z-A",               versions: ["legends-z-a"] },
+];
+
+// Maps PokeAPI generation names to native origin marks
+const GEN_TO_MARKS = {
+  "generation-i":   ["gameboy"],
+  "generation-ii":  ["gameboy"],
+  "generation-iii": [],           // No origin mark for Gen III–V
+  "generation-iv":  [],
+  "generation-v":   [],
+  "generation-vi":  ["pentagon"],
+  "generation-vii": ["clover"],
+  "generation-viii": ["galar", "sinnoh", "hisui"],
+  "generation-ix":  ["paldea", "lumiose"],
+};
+
+function getOriginMarks(species, encounters) {
+  const markIds = new Set();
+  // Native marks from the Pokemon's generation
+  const genName = species?.generation?.name;
+  if (genName && GEN_TO_MARKS[genName]) {
+    GEN_TO_MARKS[genName].forEach(m => markIds.add(m));
+  }
+  // Marks derived from encounter data (which game versions it appears in)
+  if (encounters?.length) {
+    encounters.forEach(enc => {
+      enc.version_details?.forEach(vd => {
+        const ver = vd.version.name;
+        ORIGIN_MARKS.forEach(mark => {
+          if (mark.versions.includes(ver)) markIds.add(mark.id);
+        });
+      });
+    });
+  }
+  // Pokemon GO mark — most Pokemon up to Gen VIII are in GO
+  const pokemonId = species?.id;
+  if (pokemonId && pokemonId <= 905) markIds.add("go");
+  return ORIGIN_MARKS.filter(m => markIds.has(m.id));
+}
+
 const GENERATIONS = [
   { label: "I", name: "Kanto", start: 1, end: 151 },
   { label: "II", name: "Johto", start: 152, end: 251 },
@@ -241,19 +294,15 @@ const PokemonCard = ({ data, caught, showShiny, onClick, onToggleCaught }) => {
 //  DETAIL MODAL
 // ═══════════════════════════════════════════════════════════
 
-const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, onToggleCaught, initialShiny }) => {
+const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, onToggleCaught, showShiny }) => {
   const [activeTab, setActiveTab] = useState("stats");
-  const [shiny, setShiny] = useState(initialShiny);
   const [animateStats, setAnimateStats] = useState(false);
-  const [spriteKey, setSpriteKey] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setAnimateStats(true), 200);
     document.body.style.overflow = "hidden";
     return () => { clearTimeout(t); document.body.style.overflow = ""; };
   }, []);
-
-  useEffect(() => { setSpriteKey(k => k + 1); }, [shiny]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -326,20 +375,11 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                 background: `radial-gradient(circle, ${typeColor}22 0%, transparent 70%)`,
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-                <img key={spriteKey} src={spriteUrl(pokemon.id, shiny)} alt={pokemon.name}
+                <img src={spriteUrl(pokemon.id, showShiny)} alt={pokemon.name}
                   onError={(e) => { e.target.src = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.id}.png`; }}
                   style={{ width: 120, height: 120, objectFit: "contain", animation: "spriteSwap .4s ease, float 3s ease infinite",
                     filter: `drop-shadow(0 4px 15px ${typeColor}55)` }}/>
               </div>
-              <button onClick={() => setShiny(!shiny)} style={{
-                position: "absolute", bottom: -2, right: -2, padding: "4px 10px",
-                borderRadius: 12, border: `1px solid ${shiny ? "#ffd700" : "rgba(255,255,255,.15)"}`,
-                background: shiny ? "linear-gradient(135deg, #ffd700, #ffaa00)" : "rgba(255,255,255,.08)",
-                color: shiny ? "#333" : "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer",
-                transition: "all .3s ease", letterSpacing: .5,
-              }}>
-                {shiny ? "\u2605 SHINY" : "\u2726 SHINY"}
-              </button>
             </div>
 
             <div style={{ flex: 1 }}>
@@ -459,6 +499,60 @@ const DetailModal = ({ pokemon, species, encounters, loading, onClose, caught, o
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+              {/* Origin Marks */}
+              {species && (
+                <div style={{ marginTop: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.4)", letterSpacing: 1, textTransform: "uppercase" }}>
+                      Origin Marks
+                    </div>
+                    <div style={{
+                      position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      width: 16, height: 16, borderRadius: "50%", background: "rgba(255,255,255,.08)",
+                      fontSize: 10, color: "rgba(255,255,255,.4)", cursor: "help",
+                    }} title="Origin marks are icons shown on a Pokemon's summary screen indicating which game it was caught in. A Pokemon can only have one origin mark, determined by its game of origin.">
+                      ?
+                    </div>
+                  </div>
+                  {(() => {
+                    const marks = getOriginMarks(species, encounters);
+                    if (marks.length === 0) {
+                      return (
+                        <div style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(255,255,255,.03)",
+                          fontSize: 12, color: "rgba(255,255,255,.4)", fontStyle: "italic" }}>
+                          No origin mark &mdash; Pokemon from Gen III&ndash;V games do not receive an origin mark.
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {marks.map(mark => (
+                          <div key={mark.id} style={{
+                            display: "flex", alignItems: "center", gap: 10,
+                            padding: "8px 12px", borderRadius: 10,
+                            background: `linear-gradient(135deg, ${mark.color}12, rgba(255,255,255,.02))`,
+                            border: `1px solid ${mark.color}22`,
+                          }}>
+                            <div style={{
+                              width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+                              background: `${mark.color}22`, fontSize: 16, flexShrink: 0,
+                            }}>
+                              {mark.symbol}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: mark.color }}>{mark.name} Mark</div>
+                              <div style={{ fontSize: 10, color: "rgba(255,255,255,.45)", marginTop: 1 }}>{mark.games}</div>
+                            </div>
+                          </div>
+                        ))}
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,.3)", marginTop: 4, lineHeight: 1.5, fontStyle: "italic" }}>
+                          A Pokemon can only carry one origin mark, set by the game it was caught or hatched in. Marks cannot be changed.
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -616,6 +710,10 @@ export default function App() {
   const caughtInGen = Array.from({ length: totalInGen }, (_, i) => gen.start + i).filter(id => caught[id]).length;
   const caughtPct = totalInGen > 0 ? (caughtInGen / totalInGen) * 100 : 0;
 
+  const totalPokemon = 1025;
+  const totalCaught = Object.values(caught).filter(Boolean).length;
+  const totalPct = totalPokemon > 0 ? (totalCaught / totalPokemon) * 100 : 0;
+
   return (
     <div style={{ minHeight: "100vh" }}>
       {/* ═══ HEADER ═══ */}
@@ -639,12 +737,19 @@ export default function App() {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ textAlign: "right", paddingRight: 12, borderRight: "1px solid rgba(255,255,255,.1)" }}>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>
+                <span style={{ color: "#48dbfb" }}>{totalCaught}</span>
+                <span style={{ color: "rgba(255,255,255,.25)", fontWeight: 400 }}> / {totalPokemon}</span>
+              </div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,.35)", letterSpacing: 1, textTransform: "uppercase" }}>Total</div>
+            </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 22, fontWeight: 800 }}>
                 <span style={{ color: "#ffd700" }}>{caughtInGen}</span>
                 <span style={{ color: "rgba(255,255,255,.3)", fontWeight: 400 }}> / {totalInGen}</span>
               </div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,.4)", letterSpacing: 1, textTransform: "uppercase" }}>Caught</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,.4)", letterSpacing: 1, textTransform: "uppercase" }}>{gen.name}</div>
             </div>
             <button onClick={() => setShowShiny(!showShiny)} style={{
               padding: "8px 16px", borderRadius: 12, border: "none", cursor: "pointer",
@@ -658,16 +763,36 @@ export default function App() {
           </div>
         </div>
 
-        {/* Progress bar */}
-        <div style={{ marginTop: 12, height: 6, borderRadius: 3, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
-          <div style={{
-            height: "100%", borderRadius: 3, transition: "width .8s cubic-bezier(.4,0,.2,1)",
-            width: `${caughtPct}%`,
-            background: caughtPct >= 100
-              ? "linear-gradient(90deg, #ffd700, #ff8c00, #ffd700)"
-              : "linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3)",
-            boxShadow: caughtPct >= 100 ? "0 0 15px rgba(255,215,0,.5)" : "0 0 10px rgba(72,219,251,.3)",
-          }}/>
+        {/* Progress bars */}
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.3)", letterSpacing: .5, width: 42, textAlign: "right" }}>{gen.name}</span>
+            <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 3, transition: "width .8s cubic-bezier(.4,0,.2,1)",
+                width: `${caughtPct}%`,
+                background: caughtPct >= 100
+                  ? "linear-gradient(90deg, #ffd700, #ff8c00, #ffd700)"
+                  : "linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3)",
+                boxShadow: caughtPct >= 100 ? "0 0 15px rgba(255,215,0,.5)" : "0 0 10px rgba(72,219,251,.3)",
+              }}/>
+            </div>
+            <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,.3)", width: 32 }}>{Math.round(caughtPct)}%</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.3)", letterSpacing: .5, width: 42, textAlign: "right" }}>Total</span>
+            <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,.04)", overflow: "hidden" }}>
+              <div style={{
+                height: "100%", borderRadius: 2, transition: "width .8s cubic-bezier(.4,0,.2,1)",
+                width: `${totalPct}%`,
+                background: totalPct >= 100
+                  ? "linear-gradient(90deg, #ffd700, #ff8c00, #ffd700)"
+                  : "linear-gradient(90deg, #48dbfb, #54a0ff, #9b59b6)",
+                boxShadow: totalPct >= 100 ? "0 0 15px rgba(255,215,0,.5)" : "none",
+              }}/>
+            </div>
+            <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,.3)", width: 32 }}>{Math.round(totalPct)}%</span>
+          </div>
         </div>
 
         {/* Gen selector */}
@@ -769,7 +894,7 @@ export default function App() {
           pokemon={modalPokemon} species={modalSpecies} encounters={modalEncounters}
           loading={modalLoading} onClose={() => setModalPokemon(null)}
           caught={!!caught[modalPokemon.id]} onToggleCaught={() => toggleCaught(modalPokemon.id)}
-          initialShiny={showShiny}
+          showShiny={showShiny}
         />
       )}
     </div>
